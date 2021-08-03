@@ -1,10 +1,18 @@
+***
+***
+
 # animeTraj
 
 Project of creating trajectory animation. Trajectories are generated using the hysplit model.
 
+***
+***
+
 ## Wprowadzenie
 
-Poniższy projekt pozwala na wykonanie animacji trajektori wstecznych wygenerowanych przez model hysplit. Zawiera on przykładowe dane dla epizodu występowania wyskich stężeń pyłów zawieszonych w krakawie w okresie od 14 do 21 marca 2020 r. Trajektorie zostały wygenerowane za pomocą model [HYSPLIT](https://www.ready.noaa.gov/HYSPLIT.php)
+Poniższy projekt pozwala na wykonanie animacji trajektori wstecznych wygenerowanych przez model hysplit. Zawiera on przykładowe dane dla epizodu występowania wyskich stężeń pyłów zawieszonych w krakawie w okresie od 14 do 21 marca 2020 r. Trajektorie zostały wygenerowane za pomocą model [HYSPLIT](https://www.ready.noaa.gov/HYSPLIT.php). W celu obliczenia trajektorii wstecznych napływu zanieczyszczeń skorzystano z reanaliz meteorologicznych [ERA5 hourly data on pressure levels from 1979 to present ](https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-pressure-levels?tab=overview)
+and [ERA5 hourly data on single levels from 1979 to present](https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-single-levels?tab=overview)
+udostępnianych przez [CDS](https://cds.climate.copernicus.eu/#!/home). Dane pozyskanao za pomocą skryptu [hysplit_metdata](https://github.com/amcz/hysplit_metdata). Konwersję danych do formatu ARL wykonano za pomocą programu `era52arl`.
 
 ***
 
