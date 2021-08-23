@@ -512,7 +512,7 @@ gif_b <- dane %>%
   theme_light() + 
   
   scale_color_viridis_d(option = "magma") +
-  scale_x_datetime(limits =  range(hy_data %>% 
+  scale_x_datetime(limits =  range(dane %>% 
                                      filter(hour.inc > -72) %>% pull(date2)), 
                    expand = c(0,0)) +
   scale_y_continuous(expand = c(0,0)) +
