@@ -1,0 +1,809 @@
+---
+title: "animeTraj"
+subtitle: "Project of creating trajectory animation. Trajectories are generated using the hysplit model."
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+    html_document:
+      theme: spacelab
+      highlight: kate
+      toc: true
+      toc_float: true
+      collapsed: false
+      smooth_scroll: false
+      number_sections: false
+      toc_depth: 3
+      self_contained: true
+      code_folding: NULL
+editor_options: 
+  chunk_output_type: console
+---
+
+<script>
+   $(document).ready(function() {
+     $head = $('#header');
+     $head.prepend('<img src=\"https://www.agh.edu.pl/typo3temp/_processed_/csm_znak_graficzny_agh_706c741ae0.jpg\" style=\"float: right;width: 170px;\"/>')
+   });
+</script>
+
+<style type="text/css"> 
+body { font-size: 14px; text-align: justify ; color: black} code.r{ font-size: 14px;} pre { font-size: 14px} 
+h1   { font-size: 24px;} h2 { font-size: 22px;} h3 { font-size: 20px;} 
+</style>
+***
+
+**dr inż. Mateusz Rzeszutek** 
+
+**AGH** Akademia Górniczo-Hutnicza im. Stanisława Staszica w Krakowie, Wydział Geodezji Górniczej i Inżynierii Środowiska, Katedra Kształtowania i Ochrony Środowiska.
+
+**e-mail:** *[rzeszut@agh.edu.pl](rzeszut@agh.edu.pl)*.
+
+**lokalizacja:**  bud. C-4, p. V, pok. 16a, al. A. Mickiewicza 30, Kraków, Polska.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=F, error=F, warning=FALSE)
+```
+
+***
+
+## Wprowadzenie
+
+***
+
+Poniższy projekt dotyczy tworzenia animacji trajektorii wstecznych. Zawiera on
+przykładowe dane dla epizodu występowania wysokich stężeń pyłów zawieszonych w
+Krakowie. W okresie od 14 do 21 marca 2020 r. Pokaże wam jak utworzyć animacje
+wyświetlające określoną liczbę trajektorii. W tym celu przejdziemy krok po kroku
+w celu poznania odpowiednich funkcji i pakietów. Następnie napiszemy funkcję,
+która pozwoli nam w łatwy sposób generować animację. Na końcu napiszemy pętle,
+która będzie tworzyć wiele animacji na raz.
+
+Trajektorie zostały wygenerowane za pomocą modelu
+[HYSPLIT](https://www.ready.noaa.gov/HYSPLIT.php). W celu obliczenia trajektorii
+wstecznych skorzystano z re-analiz meteorologicznych [ERA5 hourly data on
+pressure levels from 1979 to
+present](https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-pressure-levels?tab=overview)
+and [ERA5 hourly data on single levels from 1979 to
+present](https://cds.climate.copernicus.eu/cdsapp#!/dataset/reanalysis-era5-single-levels?tab=overview)
+udostępnianych przez [CDS](https://cds.climate.copernicus.eu/#!/home).
+
+Dane **ERA5** pozyskano za pomocą skryptu
+[hysplit_metdata](https://github.com/amcz/hysplit_metdata). Konwersję danych do
+formatu ARL wykonano za pomocą programu **era52arl**. Program ten udostępniany
+jest wraz z modelem hysplit (w dystrybucji na systemy operacyjne linux).
+
+Oprócz danych z modelu hysplit [traj_data_krk.RData](...) znajdziecie również
+dane o jakości powietrza na stacji
+[bujaka](http://powietrze.gios.gov.pl/pjp/current/station_details/info/401) i
+wybrane parametry meteorologiczne pozyskane z stacji [ZFS, WFiIS, AGH w
+Krakowie](http://meteo.ftj.agh.edu.pl/).
+
+
+***
+
+## Pakiety i oprogramowanie
+
+***
+
+W ramach tego projektu będziemy korzystać z następujacych pakietów:
+
+-   [devtools](https://github.com/r-lib/devtools)
+-   [tidyverse](https://www.tidyverse.org/)
+-   [rlang](https://rlang.r-lib.org/)
+-   [stringr](https://stringr.tidyverse.org/)
+-   [lubridate](https://lubridate.tidyverse.org/)
+-   [RCurl](https://cran.r-project.org/web/packages/RCurl/index.html)
+-   [repmis](https://cran.rstudio.com/web/packages/repmis/index.html)
+-   [ggmap](https://github.com/dkahle/ggmap)
+-   [magick](https://github.com/ropensci/magick)
+-   [gganimate](https://gganimate.com/articles/gganimate.html)
+-   [gapminder](https://github.com/jennybc/gapminder)
+-   [gifski](https://github.com/r-rust/gifski)
+-   [DT](https://rstudio.github.io/DT/)
+
+```{r echo=T, include = T, error=F, message=FALSE}
+if(!require("devtools")) install.packages("devtools")
+if(!require("tidyverse")) install.packages("tidyverse")
+if(!require("lubridate")) install.packages("lubridate")
+if(!require("stringr")) install.packages("stringr")
+if(!require("RCurl")) install.packages("RCurl")
+if(!require("rlang")) install.packages("rlang")
+if(!require("repmis")) install.packages("repmis")
+if(!require("ggmap")) devtools::install_github("dkahle/ggmap")
+if(!require("magick")) devtools::install_github("ropensci/magick")
+if(!require("gganimate")) install.packages("gganimate")
+if(!require("gapminder")) install.packages("gapminder")
+if(!require("gifski")) install.packages("gifski")
+if(!require("DT")) install.packages("DT")
+```
+
+***
+
+**Uwaga!!!** - pakiet ggmap wymaga: złożenia konta google, wygenerowania klucza
+API, uruchomienia odpowiednich usług. Szczegółowe informacje i potrzebne linki
+znajdziecie na stronie [ggmap](https://github.com/dkahle/ggmap). Zachęcam do
+zapoznania się z tym materiałem przed realizacja poniższych czynności.
+
+***
+
+**Uwaga!!!** - pakiet `magic` jest interfejsem do programu
+[ImageMagick](https://imagemagick.org/index.php) – Niezbędnym jest
+zainstalowanie ImageMagick.
+
+***
+
+## 1. Wczytanie danych
+
+***
+
+W celu wczytania danych z modelu hysplit (trajektorie wsteczne) należy
+skorzystać z funkcji znajdującej się w pliku
+[read_hysplit_out.R](animeTraj/read_hysplit_out.R). Funkcja tą należy dostosować
+w zależności od struktury danych wejściowych pochodzących z modelu HYSPLIT. Nie
+powinno to być trudne. Trzeba zwrócić uwagę na liczbę eksportowanych parametrów
+oraz liczbę linii które muszą zostać pominięte. Na potrzeby tego projektu
+skorzystamy już z gotowych i przygotowanych danych. Zapewne w przyszłości
+zmodyfikuję to funkcję, by była uniwersalna.
+
+Surowe dane wczytamy z github. Warto zapoznać sie z tym
+[przewodnikiem](https://github.com/opetchey/RREEBES/wiki/Reading-data-and-code-from-an-online-github-repository)
+dotyczącym pobierania surowych danych z github. Ważnym jest zrozumienie pojęcia
+surowe dane.
+
+
+```{r}
+# Funkacj pobiera i wczytuje pliki Rdata z github
+
+source_data("https://github.com/mrzeszut/animeTraj/blob/master/traj_data_krk.RData?raw=true")
+
+# pobranie i wczytanie danych csv z github
+
+url <- "http://github.com/mrzeszut/animeTraj/raw/master/data_import.csv"
+
+met_air_data <- read.csv(file = url, sep = ";") %>% 
+  as_tibble() %>% 
+  mutate(time = as.POSIXct(time, tz = "GMT")) %>% 
+  rename(date = time)
+```
+
+Dane zawierają symulacje dla 6 lokalizacji położonych w Małopolsce. Odpowiadają
+one położeniu stacji monitoringu jakości powietrza zlokalizowanych w niżej
+wymienionych miastach.
+
+- [1] Kraków
+- [2] Nowy Sącz
+- [3] Skawina
+- [4] Tarnów
+- [5] Tzrebinia
+- [6] Zakopane 
+
+```{r}
+hy_data <- hy_data %>% 
+  mutate(receptor = case_when(receptor == 1 ~ "Krak",
+                              receptor == 2 ~ "NoSacz",
+                              receptor == 3 ~ "Skaw",
+                              receptor == 4 ~ "Tar",
+                              receptor == 5 ~ "Trzeb",
+                              receptor == 6 ~ "Zakopa"))
+```
+
+Przyjrzymy się naszym danym. Zawierają informacje o czasie, położeniu, wysokości
+trajektori, ciśnieniu, wysokości warstwy mieszania oraz wysokości terenu nad
+poziomem morza. Zmienna `date2` jest identyfikatorem trajektorii. Reprezentuję
+godzinę dotarcia trajektorii do wyznaczonego punktu. W tym przypadku stacji
+jakości powietrza **Bujaka** w Krakowie.
+
+```{r}
+hy_data %>% 
+  filter(receptor == "Krak") %>% 
+  select(-receptor) %>% 
+  datatable()
+```
+
+Poniżej znajdują się przygotowane dane meteorologiczne (temperatura powietrza,
+wilgotność, kierunek i prędkość wiatru, opad atmosferyczny) oraz informacje o
+jakości powietrza (stężenie PM10).
+
+```{r}
+met_air_data %>% 
+  mutate_if(is.numeric, round, digits = 2) %>% 
+  datatable()
+```
+
+**Wszystkie szeregi czasowe danych zostały przygotowane w GMT (UTC 00:00)**
+
+***
+
+## 2. Przeglad danych 
+
+Wykres liniowy - szereg czasowy danych meteorologicznych i stężeń PM10.
+
+***
+```{r, fig.align='center'}
+met_air_data %>% 
+  gather(key = param, value = value, temp:pm10) %>% 
+  ggplot(aes(x = date, y = value)) +
+  geom_line() +
+  facet_wrap(~param, scales = "free_y")
+```
+
+Możemy zauważyć:
+
+* Najwyższe 1-godzinne stężenia PM10 występowały w godzinach nocnych.
+* Wraz z spadkiem prędkości wiatru w cyklu dobowym rosną stężenia PM10. Co
+potwierdza również poniższy **scatterplot** (patrz niżej). Warto zwrócić uwagę
+na nim na dwie odstające obserwacje.
+* Nagłe obniżenie poziomu stężeń PM10 dnia 21 marca mogło wynikać z intensywnych
+opadów atmosferycznych oraz wzrostu prędkości wiatru.
+* W okresie utrzymywania się wysokich steżeń dominowały wiatry wiejące z zachodu
+i południowego zachodu. Jest to przesłanka wskazująca, że wysokie stężenia
+zanieczyszczeń mogą być konsekwencja napływu zanieczyszczonych mas powietrza.
+Pytanie zasadnicze, to czy jest to napływ pochodzący z pobliskich miejscowości
+(lokalny), czy raczej wynikający z transportu na duże odległości.
+* Niewątpliwie na zmienność dobową stężeń PM10 miały wpływ warunki
+atmosferyczne, w tym głównie prędkość wiatru (patrz niżej). Należy jednak
+zauważyć, że w trakcie występowania epizodów dominował jeden kierunek wiatru.
+Jest to argument wskazujący, że wyoskie stężenia mogły byc zwiazane z napływem
+zanieczyszczeń
+* W takim przypadku dobrze jest prześledzić trajktorie wsteczne, w celu
+sprawdzenia czy w porach nocnych (wysokie stężęnia) i dziennych (niskie
+stężęnia) trajektorie miały podobny przebieg (źródło pochodzenia).
+
+
+```{r, fig.align='center'}
+met_air_data %>% 
+  ggplot(aes(x = ws, y =pm10)) +
+  geom_point() +
+  geom_smooth()
+```
+
+Powyższy wykres scaterr plot wraz z dopasowaną linią modelu liniowego wskazuje,
+że istnieje relacja między prędkością wiatru a poziomami stężeń PM10. Wraz z
+wzrostem prędkości maleją stężenia PM10. Należy zwrócić uwagę, że występują
+wyraźne dwie odstające obserwacje, których geneza jest nieznana. Spowodowana
+lokalnym wzrostem wielkości emisji bądź napływem zanieczyszczeń.
+
+***
+
+## 3. Połączenie danych
+
+***
+
+W celu lepszego zobrazowania, które wartości stężeń powiązane są z konkretnymi
+trajektoriami, połączymy dane o jakości powietrz z danymi uzyskanymi z modelu
+HYSPLIT. 
+
+Trajektorie można identyfikować po kolumnie `date2`. Natomiast `date`
+odpowiada czasowi przebiegu trajektorii. Zestaw danych zawiera 120 godzinne
+trajektorie wsteczne. Dodatkowo kolumna `hour.inc` informuje, która jest to
+godzina od rozpoczęcia biegu.
+
+Dane połączymy za pomocą kolumn `date`. Wszystkie dane mają identyczną strefę
+czasową UTC-00. Zastosujemy lewostronne łączenie.
+
+
+```{r}
+hy_data <- left_join(hy_data %>% 
+                       select(-year, month, day, hour), # usuwamy zbędne dane
+                     met_air_data, 
+                     by = "date")
+# Podgląd danych
+hy_data %>% 
+  select(-month, -day, -hour) %>% 
+  head() %>% 
+  knitr::kable(digits = 2)
+```
+
+***
+
+## 4. Wczytanie podkładu mapowego 
+
+***
+
+Podkład mapowy został umieszczony w danych projektu, obiekt `hy_map`. Istnieje
+wiele metod tworzenia podkładów mapowych. Skupimy się w ramach tego projektu na
+wykorzystaniu pakietu `ggmap`.
+
+w celu utworzenia obiektu naleyży założyć konto google i aktywowac odpowiednie
+usługi. Patrz wyzej. Następnie można przystapić do wykonania poniższych poleceń.
+
+**Uwaga!!! Kod zadziałą dopiero po aktywacji odpowiednich usług google**
+
+W poniższych funkcjach definiujemy współrzędne środka, wielkość przybliżenia
+oraz rodzaj podkładu mapowego.
+
+```{r eval=F, include=T}
+# Podaj swój klucz
+
+api.key <- "twój unikalny klucz api google"
+
+# Rejestruyjemy swój klucz api
+
+register_google(key = "api.key")
+
+# pobieramy dane z google maps
+
+hy_map <- get_map(location = c(lon = 18, lat = 54.0), 
+                  source = "stamen", 
+                  zoom = 4, 
+                  maptype = "terrain-background")
+
+
+hy_map_zoom <- get_map(location = c(lon = 18, lat = 52.0), 
+                       source = "stamen", 
+                       zoom = 6, 
+                       maptype = "terrain-background")
+```
+
+Możemy podglądać przygotowane mapy poleceniem `ggmap()`.
+
+```{r, fig.align='center'}
+hy_map %>% ggmap()
+hy_map_zoom %>% ggmap()
+```
+
+*** 
+
+## 5. Animacja Trajektorii
+
+### 5.1. Filtrowaie danych 
+
+***
+
+W pierwszej kolejności wybierzemy dane tylko dla jednego receptora (`Krak`) oraz
+zdefiniujemy zakres czasu który nas interesuje. Dodatkowo utworzymy pomocniczą
+zmienną daty (`date3`), która będzie identyfikatorem każdej trajektorii i będzie
+składała się tylko z dnia i godziny.
+
+```{r}
+# zakres dany
+
+zakres <- c(as.POSIXct("2020-03-14 12:00:00", tz = "GMT") + (0:23 *3600))
+
+# uproszczenie formatu daty
+
+hy_data <- hy_data %>% 
+  mutate(date3 = paste0(day(date) %>% as.character(), "-" , 
+                        hour(date) %>% as.character())) 
+
+# filtrowanie
+
+dane <- hy_data %>% 
+  filter(receptor == "Krak") %>% 
+  filter(date %in% zakres) 
+```
+
+
+***
+
+### 5.2. Wykres bazowy 
+
+***
+
+Najpierw utworzymy wykres trajektorii, by zorientować się czy nasze podkłady
+mapowe są odpowiednich zakresów długości i szerokości geograficznej.
+
+```{r, fig.align='center'}
+ggmap(hy_map) + 
+  geom_path(data = dane, 
+             mapping = aes(x = lon, y = lat, 
+                           color = date3)) +
+  theme_light() + 
+  
+  scale_color_viridis_d(option = "magma") +
+  labs(color = "Trajectory (day-hour)", 
+       x = "lon", 
+       y = "lat") + 
+  theme(panel.ontop=TRUE, 
+        panel.background=element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5)) -> hy_1 ; hy_1
+```
+
+Przygotowujemy wykres dla naszej animacji. Zmieniamy typ wykresu na
+`geom_point()`. Modyfikujemy układ legendy i dodajemy estetykę `size` względem
+wartości stężenia PM10.
+
+```{r, fig.align='center'}
+ggmap(hy_map) + 
+  geom_point(data = dane %>% 
+               filter(hour.inc > -72), 
+             mapping = aes(x = lon, y = lat, 
+                           color = date3, 
+                           size = pm10*0.005)) +
+  theme_light() + 
+  
+  scale_color_viridis_d(option = "magma") +
+  
+  labs(size = "Concentration PM10", 
+       color = "Trajectory (day-hour)", 
+       x = "lon", y = "lat") + 
+  theme(panel.ontop=TRUE, 
+        panel.background=element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        plot.subtitle = element_text(hjust = 0.5), 
+        legend.position = "top", 
+        legend.direction = "horizontal", 
+        legend.box = "vertical") -> hy_1
+```
+
+***
+
+### 5.3. Animacja
+
+***
+
+Na podstawie przygotowanego wykresu `hy_1` wygenerujemy animację. W tym celu
+skorzystamy z pakietu `gganimate`. Dodajemy do obiektu graficznego `hy_1`
+funkcje `transition_time(.,,)`. Jako argument podajemy `date2`. Sekwencja
+wyświetlania się elementów na wykresie będzie podążać za wartością w kolumnie
+`date2`. Dodatkowo dodamy etykiety tytułu i podtytułu. Zastosujemy również
+funkcję `shadow_mark`. Będzie tworzyć ślad trajektorii w postaci małych i
+przeźroczystych kropek.
+
+```{r}
+gif_a <- hy_1 + 
+  transition_time(date2) + 
+  ggtitle("Backward trajectories of pollutant inflow to Krakow", 
+          subtitle = "Data steps: {frame_time} :: End date 2020-01-01") + 
+  shadow_mark(alpha = 0.3, 
+              size = 0.5)
+```
+
+Teraz możemy wygenerować animacje i zapisać ją. 
+
+```{r}
+# Generuj animacje (chwilę potrwa)
+
+gif_a <- animate(gif_a, 
+                 fps = 10, 
+                 nframes = 72, 
+                 height = 1200*0.6, 
+                 width = 1000*0.6)
+
+# Zapis animacji do gif.
+
+anim_save(animation = gif_a, 
+          filename = "traj_anime_14_15_marca.gif")
+```
+
+
+```{r echo=FALSE, fig.align='center'}
+gif_a
+```
+
+Na przedstawionej animacje można wyraźnie zaobserwować, że wyższe stężenia PM10,
+które miały miejsce nocą z dnia 14/15 marca związane były z napływem z
+zachodniej Europy, natomiast niższe stężania występowały gdy pochodziły z
+północy.
+
+Możemy się cieszyć animacją i rozpocząć interpretacje, ale to jeszcze nie
+koniec... Efekt kierunku napływu może wynikać z innej przyczyny, co za chwilę
+zostanie zobrazowane. Dodamy dodatkowe elementy, które pozwolą nam lepiej
+zrozumieć co się dzieje w tej przestrzeni wielowymiarowej. Animacja przedstawią
+zmianę położenia x i y w jednostce czasu. Natomiast należy uwzględnić również 4
+zmienną tj.: wysokość trajektorii nad poziomem terenu.
+
+
+***
+
+## 6. Animacja wysokość położenia cząstki
+
+***
+
+Przemieszczenie poziome trajektorii jest interesujący, ale nie precyzyjny. W
+celu lepszego zrozumienia toru lotu dodamy dodatkową animacje przedstawiająca
+jak zmieniała się wysokość trajektorii m.n.p.g
+
+Warto zaznaczyć, że punkt startowy wyznaczania trajektorii wstecznych ustalono
+na połowę wysokości [warstwy mieszania
+(PBL)](https://glossary.ametsoc.org/wiki/Planetary_boundary_layer). Oznacza to,
+że każdy proces obliczeniowy miał inny punkt startowy w pionie.
+
+
+```{r, fig.align='center'}
+
+# Tworzymy wykres
+
+gif_b <- dane %>% 
+  filter(hour.inc > -72) %>% 
+  ggplot(aes(x = date2, y = height)) +
+  geom_point(aes(group = date3, color = date3, size = pm10*0.005)) +
+  geom_line(aes(group = date3, color = date3)) +
+  theme_light() + 
+  
+  scale_color_viridis_d(option = "magma") +
+  scale_x_datetime(limits =  range(dane %>% 
+                                     filter(hour.inc > -72) %>% pull(date2)), 
+                   expand = c(0,0)) +
+  scale_y_continuous(expand = c(0,0)) +
+  
+  theme(legend.position = "none") +
+  labs(x = "time", 
+       y = "height in meters agl") +
+  transition_reveal(date2)
+
+# generujemy animację
+
+gif_b <- animate(gif_b, 
+                 fps = 10, 
+                 nframes = 72, 
+                 height = 300*0.6, 
+                 width = 1000*0.6)
+
+# Zapis animacji do gif.
+
+anim_save(animation = gif_b, 
+          filename = "hight_anime_14_15_marca.gif")
+```
+
+```{r echo=FALSE, fig.align='center'}
+gif_b
+```
+
+Trajektorie napływające z zachodu przemieszczają się przy powierzchni terenu.
+Ich wysokość położenia oscyluje w granicach od kilkunastu do około 300 m n.p.t.
+
+Teraz wystarczy połączyć nasze dwie animację w jedną.
+ 
+
+***
+
+## 7. Łączenie animacji
+
+***
+
+Skorzystam z oprogramowania [ImageMgick](https://imagemagick.org/index.php) i
+pakietu `magick`. Koniecznym jest zainstalowanie tego programu i pakietu.
+Zrobiliśmy to na początku instrukcji.
+
+**UWAGA !!! To nie zadziała jeśli masz polskie znaki w opisach tekstowych grafik** 
+
+```{r}
+# Konwersja gif.
+
+a <- image_read(gif_a)
+b <- image_read(gif_b)
+
+# łączymy gif
+
+new_gif <- image_append(c(a[1], b[1]), stack = TRUE)
+
+# pętla łącznia wrzystkich klatek.
+
+for(i in 2:72){
+  combined <- image_append(c(a[i], b[i]), stack = TRUE)
+  new_gif <- c(new_gif, combined)
+}
+
+# zapis
+
+anim_save("traj.gif", animation = new_gif)
+```
+
+```{r echo=FALSE, fig.align='center'}
+new_gif
+```
+
+***
+
+## 8. Funkcja
+
+***
+
+Wiemy jak zrobić animacje. Możemy napisać teraz prostą funkcję, która będzie
+tworzyć animacje trajektorii. Zakładamy, że argumentami będą:
+
+* dane (`data`), 
+* podkład mapowy (`maps`),
+* czas trwania trajektorii (`h`), 
+* zakres wyświetlanych danych (`time_range`), 
+* modyfikacja etykiety rozmiaru punktu (`conc`, `labs_conc`)
+* wybór parametru przedstawianego na wykresie liniowy (`param_chart`,
+`labs_param`)
+
+
+Skorzystamy z pakietu rlnag w celu definiowania zmiennych. Zachowamy spójność
+kodu rodziny pakietów `tidyverse`.
+/
+Funkcja jest prosta i nie zabezpieczona wiec należy przyswoić i zrozumieć jej
+argumenty.
+
+```{r}
+traj_anim <- function(data = hy_data, 
+                      maps = hy_map, 
+                      h = -72, 
+                      time_range = zakres, 
+                      conc = pm10,
+                      param_chart = height,
+                      height_gif = 1200,
+                      width_gif  = 1000, 
+                      labs_conc = "Concentration PM10 [ug/m3 * 0.005]", 
+                      labs_param = "height in meters agl") {
+  # filtrowanie  
+  data <- data %>% 
+    filter(date %in% time_range) %>% 
+    mutate(date3 = paste0(day(date) %>% as.character(), "-" , 
+                          hour(date) %>% as.character())) %>% 
+    filter(hour.inc > h)
+  
+  # obiekty graficzne
+  
+  gif_a <- ggmap(maps) +                                                 ##
+    geom_point(data = data,                                                   ##                
+               mapping = aes(x = lon, 
+                             y = lat, 
+                             color = date3, 
+                             size = !!rlang::ensym(conc) *0.005)) +           ##
+    theme_light() + 
+    
+    scale_color_viridis_d(option = "magma") +
+    
+    labs(size = labs_conc, 
+         color = "Trajectory (day-hour)", 
+         x = "lon", 
+         y = "lat") + 
+    theme(panel.ontop=TRUE, 
+          panel.background=element_blank(),
+          plot.title = element_text(hjust = 0.5),
+          plot.subtitle = element_text(hjust = 0.5), 
+          legend.position = "top", 
+          legend.direction = "horizontal", 
+          legend.box = "vertical") +
+    transition_time(date2) + 
+    ggtitle("Backward trajectories of pollutant inflow to Krakow", 
+            subtitle = "Data steps: {frame_time} :: End date 2020-01-01") + 
+    shadow_mark(alpha = 0.3, 
+                size = 0.5)
+  
+  
+  gif_b <- data %>%                                                     ##
+    ggplot(aes(x = date2,
+               y = !!rlang::ensym(param_chart))) +                            ##
+    geom_point(aes(group = date3,
+                   color = date3,
+                   size = !!rlang::ensym(conc)*0.005)) +                      ##
+    geom_line(aes(group = date3,
+                  color = date3)) +
+    theme_light() +
+
+    scale_color_viridis_d(option = "magma") +
+    scale_x_datetime(expand = c(0,0)) +
+    scale_y_continuous(expand = c(0,0)) +
+
+    theme(legend.position = "none") +
+    labs(x = "time",
+         y = labs_param) +
+    transition_reveal(date2)
+  
+  # Animacje
+
+  gif_a <- animate(gif_a,
+                   fps = 10,
+                   nframes = as.integer(abs(h)),
+                   height  = height_gif * 0.6,                                  ##
+                   width   = width_gif  * 0.6)                                  ##
+
+  gif_b <- animate(gif_b,
+                   fps     = 10,
+                   nframes = as.integer(abs(h)),
+                   height  = height_gif * 0.25 * 0.6,                           ##
+                   width   = width_gif  * 0.6)                                  ##
+
+  # łączenie
+
+  a <- image_read(gif_a)
+  b <- image_read(gif_b)
+
+  new_gif <- image_append(c(a[1], b[1]), stack = TRUE)
+
+  for(j in 2:abs(h)){
+    scalone <- image_append(c(a[j], b[j]), stack = TRUE)
+    new_gif <- c(new_gif, scalone)
+  }
+  
+  # wynik
+  return(new_gif)
+}
+```
+
+Wykonamy dwa testy w celu sprawdzenia czy funkcja działa poprawnie.
+
+***
+
+**Test 1** - standardowe ustawienia
+
+```{r, fig.align='center'}
+test_1 <- traj_anim(data = hy_data %>% 
+                      filter(receptor == "Krak"), 
+                    maps = hy_map, 
+                    h = -72, 
+                    time_range = c(as.POSIXct("2020-03-14 22:00:00", 
+                                              tz = "GMT")) + (0:5 * 3600))
+
+test_1 
+```
+
+***
+
+**Test 2** - zoom
+
+```{r, fig.align='center'}
+test_2 <- traj_anim(data = hy_data %>% 
+                      filter(receptor == "Krak"), 
+                       maps = hy_map_zoom, 
+                       h = -60, 
+                       time_range = as.POSIXct("2020-03-20 20:00:00", 
+                                               tz = "GMT") + (0:6 * 3600))
+
+test_2
+```
+
+Wszystko działa poprawnie. Możemy przejść do ostatniego etapu.
+
+***
+***
+
+## 9. Pętla
+
+Ostatnim etap to napisanie pętli.  Będzie ona tworzyć zestawy animacji dla
+całego epizodu. Zakładamy jedną animacje na jeden dzień.
+/
+Definiujemy krok pętli jako jeden dzień (okres od 12:00 pierwsze dnia do 11:00
+następnego dnia)
+
+```{r, include=TRUE, eval=FALSE}
+traj_day <- as.POSIXct("2020-03-14 12:00:00", 
+                       tz = "GMT") + c(0:23 * 24 * 3600)
+```
+
+Tworzymy pętlę i zawieramy w niej naszą funkcję.
+
+```{r, include=T, eval=F}
+for (i in 1:length(traj_day)) {
+  
+  # animacja 
+  
+  a <- traj_anim(data = hy_data %>% filter(receptor == "Krak"), 
+                 maps = hy_map, 
+                 h = -120, 
+                 time_range = traj_day[i]  + (0:23 * 3600))
+  
+  # unikalny element nazwy pliku
+  
+  dd <- traj_day[i] %>% day()
+  
+  # zapis animacji do pliku
+  
+  anim_save(filename = paste0("hy_krk_",  dd, ".gif"), 
+            animation = a)
+}
+```
+
+Teraz ograniczymy nasz obszar oraz liczbe godzin. W celu lepszego zobrazowania
+przeieszczenia trajektorii w pobliżu miasta.
+
+```{r include=T, eval=F}
+for (i in 1:length(traj_day)) {
+  
+  # animacja 
+  
+  a <- traj_anim(data = hy_data %>% filter(receptor == "Krak"), 
+                 maps = hy_map_zoom, 
+                 h = -72, 
+                 time_range = traj_day[i]  + (0:23 * 3600))
+  
+  # unikalny element nazwy pliku
+  
+  dd <- traj_day[i] %>% day()
+  
+  # zapis animacji do pliku
+  
+  anim_save(filename = paste0("hy_krk_",  dd, ".gif"), 
+            animation = a)
+}
+```
+
+
+Dziekuje za uwagę. Mam nadzieję, że było to dla ciebie pomocne. Skoro to czytasz
+to zapewne tak.
+
