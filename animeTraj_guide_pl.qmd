@@ -1,47 +1,37 @@
 ---
 title: "animeTraj"
 subtitle: "Project of creating trajectory animation. Trajectories are generated using the hysplit model."
-date: "`r format(Sys.time(), '%d %B, %Y')`"
-output: 
-    html_document:
-      theme: spacelab
-      highlight: kate
-      toc: true
-      toc_float: true
-      collapsed: false
-      smooth_scroll: false
-      number_sections: false
-      toc_depth: 3
-      self_contained: true
-      code_folding: NULL
-editor_options: 
-  chunk_output_type: console
+author: Mateusz Rzeszutek
+date: today 
+format: 
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: right
+    toc-title: Spis Treści
+    html-math-method: katex
+    code-tools: true
+    code-block-bg: true
+    code-fold: show
+    code-summary: "Show and hide code"
+    link-external-icon: true
+    link-external-newwindow: true
+    smooth-scroll: true
+    self-contained: true
+    theme: 
+        dark: solar
+        light: flatly
+    fontsize: 1.0em
+    linestretch: 1.3
+    fig-align: center
+execute: 
+  echo: true
+  error: false
+  warning: false
+  output: true
 ---
 
-<script>
-   $(document).ready(function() {
-     $head = $('#header');
-     $head.prepend('<img src=\"https://www.agh.edu.pl/typo3temp/_processed_/csm_znak_graficzny_agh_706c741ae0.jpg\" style=\"float: right;width: 170px;\"/>')
-   });
-</script>
-
-<style type="text/css"> 
-body { font-size: 14px; text-align: justify ; color: black} code.r{ font-size: 14px;} pre { font-size: 14px} 
-h1   { font-size: 24px;} h2 { font-size: 22px;} h3 { font-size: 20px;} 
-</style>
-***
-
-**dr inż. Mateusz Rzeszutek** 
-
-**AGH** Akademia Górniczo-Hutnicza im. Stanisława Staszica w Krakowie, Wydział Geodezji Górniczej i Inżynierii Środowiska, Katedra Kształtowania i Ochrony Środowiska.
-
-**e-mail:** *[rzeszut@agh.edu.pl](rzeszut@agh.edu.pl)*.
-
-**lokalizacja:**  bud. C-4, p. V, pok. 16a, al. A. Mickiewicza 30, Kraków, Polska.
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message=F, error=F, warning=FALSE)
-```
+<style type="text/css"> body { text-align: justify} </style>
 
 ***
 
