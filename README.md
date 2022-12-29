@@ -49,7 +49,6 @@ Krakowie](http://meteo.ftj.agh.edu.pl/).
 
 W repozytorium  znajduje się plik o nazwie **animeTraj_guide_pl.html**. Zawiera szczegółową instrukcje jak stworzyć poniższą animację trajektorii wstecznych. Miłej zabawy. 
 
-
 ![](traj.gif)<!-- -->
 
 ***
